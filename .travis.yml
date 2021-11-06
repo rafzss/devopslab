@@ -12,3 +12,7 @@ python:
 # Instalação de Módulos que são necessários para a Aplicação.                                                                                                                                            
 install:                                                                                                                                                                                                 
   - pip install flask pytest
+
+# Defini o script de Teste que deve rodar toda vez que o código for alterado.                                                                                                                            
+script:                                                                                                                                                                                                  
+  - pytest -v test.py
