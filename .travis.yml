@@ -16,3 +16,12 @@ install:
 # Defini o script de Teste que deve rodar toda vez que o código for alterado.                                                                                                                            
 script:                                                                                                                                                                                                  
   - pytest -v test.py
+
+# Definir o Deploy no Heroku
+deploy:
+  provider: heroku
+  api_key: $HEROKU_API_KEY
+  edge: true 
+  app: devopslab-gabydias
+  on:
+      branch: main
