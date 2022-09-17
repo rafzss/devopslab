@@ -11,11 +11,10 @@ jobs:
   Build:
     runs-on: ubuntu-latest
     steps:
-
       - name: Setup Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.7.11'
+          python-version: '3.10'
 
       - name: Checkout Repo
         uses: actions/checkout@v2
@@ -40,17 +39,56 @@ jobs:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: heroku container:login
 
-      - name: Docker Image & Push Heroku Registry
+      - name: Docker Build Image & Push Heroku Registry
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: heroku container:push -a ${{ secrets.HEROKU_APP_NAME }} web
 
-  Deploy:
+      - name: Docker Login
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          ARTIFACT_REGISTRY:  ${{ secrets.ARTIFACT_REGISTRY}}
+        run: | 
+          echo '${{ secrets.GOOGLE_CREDENTIALS }}' > key.json
+          cat key.json | docker login -u _json_key --password-stdin ${{ secrets.ARTIFACT_REGISTRY }}
+
+      - name: Build Image & Push
+        env: 
+          ARTIFACT_REGISTRY_REPO: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
+        run: | 
+          docker build -t ${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest .
+          docker push ${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest
+
+  DeployHom:
     needs: Build
     runs-on: ubuntu-latest
-
     steps:
       - name: Deploy Heroku
         env:
           HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
         run: heroku container:release -a ${{ secrets.HEROKU_APP_NAME }} web
+
+  DeployProd:
+    needs: DeployHom
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Auth GCP AppEngine
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        uses: 'google-github-actions/auth@v0'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+
+      - name: Deploy to App Engine
+        id: appengine
+        env: 
+          ARTIFACT_REGISTRY_REPO: ${{ secrets.ARTIFACT_REGISTRY_REPO }}
+        uses: 'google-github-actions/deploy-appengine@v0'
+        with:
+          image_url: ${{ secrets.ARTIFACT_REGISTRY_REPO }}/myapp:latest
+
+      - name: Prod Test
+        run: 'curl "${{ steps.appengine.outputs.url }}"'
